@@ -1,0 +1,10 @@
+Trigger what_it_means
+'S  1'  Session start
+'S 13'  warning (white noise) in trials with cue direction left
+'S 23'  warning (white noise) in trials with cue direction right
+'S 14'  cue (direction left)
+'S 24'  cue (direction right)
+'S 15'  target (on left side)
+'S 25'  target (on right side)
+'S 55'  response correct
+'S 99'  response incorrect
