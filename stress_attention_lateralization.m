@@ -21,7 +21,7 @@ subject_list = setdiff(subject_list, todrop);
 % ======================= OPTIONS =========================================================================================================
 
 % Switch parts of the script on/off
-to_execute = {'part3'};
+to_execute = {'part1'};
 
 % ============================ Part 1: Calculate lateralization index ============================================================================
 if ismember('part1', to_execute)
@@ -170,7 +170,7 @@ if ismember('part2', to_execute)
 
     % Iterate time windows
     counter = 0;
-    for t = -400 : 400 : 2800
+    for t = -500 : 500 : 3000
         counter = counter + 1;
 
         % Init topo
