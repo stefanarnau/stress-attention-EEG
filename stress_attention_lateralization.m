@@ -8,6 +8,11 @@ PATH_PLOT             = 'add_a_path_here';
 PATH_CORTISOL         = 'add_a_path_here';
 PATH_VEUSZ            = 'add_a_path_here';
 
+PATH_EEGLAB           = '/home/plkn/repos/eeglab/';
+PATH_AUTOCLEANED      = '/mnt/data_heap/exp1027/eeg/2_autocleaned/';
+PATH_TFDECOMP         = '/mnt/data_heap/exp1027/eeg/3_tfdecomp/';
+PATH_PLOT             = '/mnt/data_heap/exp1027/vsz_files/';
+
 % ======================= SUBJECTS =========================================================================================================
 
 % Define subjects (N=32)
@@ -21,7 +26,7 @@ subject_list = setdiff(subject_list, todrop);
 % ======================= OPTIONS =========================================================================================================
 
 % Switch parts of the script on/off
-to_execute = {'part1'};
+to_execute = {'part2'};
 
 % ============================ Part 1: Calculate lateralization index ============================================================================
 if ismember('part1', to_execute)
@@ -170,7 +175,7 @@ if ismember('part2', to_execute)
 
     % Iterate time windows
     counter = 0;
-    for t = -500 : 500 : 3000
+    for t = -500 : 500 : 2500
         counter = counter + 1;
 
         % Init topo
@@ -185,8 +190,8 @@ if ismember('part2', to_execute)
             lidx_warm = squeeze(mean(squeeze(latidx_warm(:, cp, :, :)), 1));
 
             % Get average for time window in alpha range for topo
-            topo_cold([chanpairs{cp}(1), chanpairs{cp}(2)]) = mean(squeeze(mean(lidx_cold(tf_freqs >= 8 & tf_freqs <= 12, tf_times >= t & tf_times < t + 400), 1)), 2);
-            topo_warm([chanpairs{cp}(1), chanpairs{cp}(2)]) = mean(squeeze(mean(lidx_warm(tf_freqs >= 8 & tf_freqs <= 12, tf_times >= t & tf_times < t + 400), 1)), 2);
+            topo_cold([chanpairs{cp}(1), chanpairs{cp}(2)]) = mean(squeeze(mean(lidx_cold(tf_freqs >= 8 & tf_freqs <= 12, tf_times >= t & tf_times < t + 500), 1)), 2);
+            topo_warm([chanpairs{cp}(1), chanpairs{cp}(2)]) = mean(squeeze(mean(lidx_warm(tf_freqs >= 8 & tf_freqs <= 12, tf_times >= t & tf_times < t + 500), 1)), 2);
 
         end
 
