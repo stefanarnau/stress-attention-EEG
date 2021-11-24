@@ -8,7 +8,7 @@ PATH_PLOT             = 'add_a_path_here';
 PATH_CORTISOL         = 'add_a_path_here';
 PATH_VEUSZ            = 'add_a_path_here';
 
-PATH_EEGLAB           = '/home/plkn/repos/eeglab/';
+PATH_EEGLAB           = '/home/plkn/eeglab2021.1/';
 PATH_AUTOCLEANED      = '/mnt/data_heap/exp1027/eeg/2_autocleaned/';
 PATH_TFDECOMP         = '/mnt/data_heap/exp1027/eeg/3_tfdecomp/';
 PATH_PLOT             = '/mnt/data_heap/exp1027/vsz_files/';
@@ -26,7 +26,7 @@ subject_list = setdiff(subject_list, todrop);
 % ======================= OPTIONS =========================================================================================================
 
 % Switch parts of the script on/off
-to_execute = {'part2'};
+to_execute = {'part1'};
 
 % ============================ Part 1: Calculate lateralization index ============================================================================
 if ismember('part1', to_execute)
@@ -53,6 +53,10 @@ if ismember('part1', to_execute)
     latidx_warm      = zeros(length(subject_list), numel(chanpairs), length(tf_freqs), length(tf_times));
     latidx_cold_fake = zeros(length(subject_list), numel(chanpairs), length(tf_freqs), length(tf_times));
     latidx_warm_fake = zeros(length(subject_list), numel(chanpairs), length(tf_freqs), length(tf_times));
+
+    % A matrix for the average contra-ipsi topography
+    contip_topo_warm = zeros(length(subject_list), 32, length(tf_freqs), length(tf_times));
+    contip_topo_cold = zeros(length(subject_list), 32, length(tf_freqs), length(tf_times));
 
     % Iterate subjects
     for s = 1 : length(subject_list)
@@ -134,6 +138,17 @@ if ismember('part1', to_execute)
             latidx_cold_fake(s, cp, :, :) = (cold_ipsi_fake - cold_contra_fake) ./ (cold_ipsi_fake + cold_contra_fake);
             latidx_warm_fake(s, cp, :, :) = (warm_ipsi_fake - warm_contra_fake) ./ (warm_ipsi_fake + warm_contra_fake);
 
+            % Build contra ipsi topo
+            %contip_topo_warm(chanpairs{cp}(1), :, :) = squeeze(contip_topo_warm(chanpairs{cp}(1), :, :)) + ((warm_contra ./ (warm_contra) + (warm_ipsi)) / length(subject_list));
+            %contip_topo_warm(chanpairs{cp}(2), :, :) = squeeze(contip_topo_warm(chanpairs{cp}(2), :, :)) + ((warm_ipsi ./ (warm_contra) + (warm_ipsi)) / length(subject_list));
+            %contip_topo_cold(chanpairs{cp}(1), :, :) = squeeze(contip_topo_cold(chanpairs{cp}(1), :, :)) + ((cold_contra ./ (cold_contra) + (cold_ipsi)) / length(subject_list));
+            %contip_topo_cold(chanpairs{cp}(2), :, :) = squeeze(contip_topo_cold(chanpairs{cp}(2), :, :)) + ((cold_ipsi ./ (cold_contra) + (cold_ipsi)) / length(subject_list));
+
+            contip_topo_warm(s, chanpairs{cp}(1), :, :) = squeeze(contip_topo_warm(s, chanpairs{cp}(1), :, :)) + (warm_contra ./ ((warm_ipsi + warm_contra) / 2));
+            contip_topo_warm(s, chanpairs{cp}(2), :, :) = squeeze(contip_topo_warm(s, chanpairs{cp}(2), :, :)) + (warm_ipsi   ./ ((warm_ipsi + warm_contra) / 2));
+            contip_topo_cold(s, chanpairs{cp}(1), :, :) = squeeze(contip_topo_cold(s, chanpairs{cp}(1), :, :)) + (cold_contra ./ ((warm_ipsi + warm_contra) / 2));
+            contip_topo_cold(s, chanpairs{cp}(2), :, :) = squeeze(contip_topo_cold(s, chanpairs{cp}(2), :, :)) + (cold_ipsi   ./ ((warm_ipsi + warm_contra) / 2));
+
         end % End chanpair iteration
     end % End subject iteration
 
@@ -142,6 +157,29 @@ if ismember('part1', to_execute)
     save([PATH_TFDECOMP 'latidx_warm'], 'latidx_warm');
     save([PATH_TFDECOMP 'latidx_cold_fake'], 'latidx_cold_fake');
     save([PATH_TFDECOMP 'latidx_warm_fake'], 'latidx_warm_fake');
+
+    % Plot contra ipsi topos
+    EEG = pop_loadset('filename', [num2str(subject_list(1)) '_autocleaned.set'], 'filepath', PATH_AUTOCLEANED, 'loadmode', 'info');
+    chanlocs = EEG.chanlocs;
+    counter = 0;
+    clim = [0.95, 1.05];
+    for t = -500 : 500 : 2500
+        counter = counter + 1;
+        figure('Visible', 'off'); clf;
+        pd = squeeze(mean(contip_topo_cold, 1));
+        pd = squeeze(mean(pd(:, tf_freqs >= 8 & tf_freqs <= 12, tf_times >= t & tf_times < t + 500), [2, 3]));
+        topoplot(pd, chanlocs, 'plotrad', 0.7, 'intrad', 0.7, 'intsquare', 'on', 'conv', 'off', 'electrodes', 'on');
+        colormap('jet');
+        caxis(clim);
+        saveas(gcf, [PATH_PLOT 'topo_contip_cold' num2str(counter) '.png']);
+        figure('Visible', 'off'); clf;
+        pd = squeeze(mean(contip_topo_warm, 1));
+        pd = squeeze(mean(pd(:, tf_freqs >= 8 & tf_freqs <= 12, tf_times >= t & tf_times < t + 500), [2, 3]));
+        topoplot(pd, chanlocs, 'plotrad', 0.7, 'intrad', 0.7, 'intsquare', 'on', 'conv', 'off', 'electrodes', 'on');
+        colormap('jet');
+        caxis(clim);
+        saveas(gcf, [PATH_PLOT 'topo_contip_warm' num2str(counter) '.png']);
+    end
 
 end % End part1
 

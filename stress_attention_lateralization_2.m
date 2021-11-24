@@ -20,7 +20,7 @@ subject_list = setdiff(subject_list, todrop);
 % ======================= OPTIONS =========================================================================================================
 
 % Switch parts of the script on/off
-to_execute = {'part2'};
+to_execute = {'part2a'};
 
 % ============================ Part 1: Calculate lateralization index ============================================================================
 if ismember('part1', to_execute)
@@ -37,6 +37,9 @@ if ismember('part1', to_execute)
     ersp_bl = [-500, -200];
     [~, blidx1] = min(abs(tf_times - ersp_bl(1)));
     [~, blidx2] = min(abs(tf_times - ersp_bl(2)));
+    zersp_bl = [-200, 0];
+    [~, zblidx1] = min(abs(tf_times - ersp_bl(1)));
+    [~, zblidx2] = min(abs(tf_times - ersp_bl(2)));
 
     % Channel lateralizations
     EEG = pop_loadset('filename', [num2str(subject_list(1)) '_autocleaned.set'], 'filepath', PATH_AUTOCLEANED, 'loadmode', 'info');
@@ -50,6 +53,20 @@ if ismember('part1', to_execute)
     ersp_cold_contra = zeros(length(subject_list), 32, length(tf_freqs), length(tf_times));
     ersp_warm_ipsi = zeros(length(subject_list), 32, length(tf_freqs), length(tf_times));
     ersp_warm_contra = zeros(length(subject_list), 32, length(tf_freqs), length(tf_times));
+
+    % Alpha matrices
+    atra_cold_ipsi   = zeros(length(subject_list), 32, length(tf_times)); 
+    atra_cold_contra = zeros(length(subject_list), 32, length(tf_times));
+    atra_warm_ipsi   = zeros(length(subject_list), 32, length(tf_times)); 
+    atra_warm_contra = zeros(length(subject_list), 32, length(tf_times));
+    atra_db_cold_ipsi   = zeros(length(subject_list), 32, length(tf_times)); 
+    atra_db_cold_contra = zeros(length(subject_list), 32, length(tf_times));
+    atra_db_warm_ipsi   = zeros(length(subject_list), 32, length(tf_times)); 
+    atra_db_warm_contra = zeros(length(subject_list), 32, length(tf_times));
+    atra_z_cold_ipsi   = zeros(length(subject_list), 32, length(tf_times)); 
+    atra_z_cold_contra = zeros(length(subject_list), 32, length(tf_times));
+    atra_z_warm_ipsi   = zeros(length(subject_list), 32, length(tf_times)); 
+    atra_z_warm_contra = zeros(length(subject_list), 32, length(tf_times));
     
     % Iterate subjects
     for s = 1 : length(subject_list)
@@ -59,6 +76,8 @@ if ismember('part1', to_execute)
 
         % Iterate channels
         for ch = 1 : 32
+
+            fprintf('\n subject %i/%i, channel %i/32', s, length(subject_list), ch)
 
             % Load power
             load([PATH_TFDECOMP num2str(subject_list(s)) '_powcube_chan_' num2str(ch)]);
@@ -83,21 +102,111 @@ if ismember('part1', to_execute)
             end
 
             % Calculate ERSPs
-            ersp_cold_ipsi(s, ch, :, :) = 10 * log10(bsxfun(@rdivide, squeeze(mean(cold_ipsi, 3)), squeeze(mean(cold_ipsi(:, blidx1 : blidx2, :), [2, 3]))));
-            ersp_cold_contra(s, ch, :, :) = 10 * log10(bsxfun(@rdivide, squeeze(mean(cold_contra, 3)), squeeze(mean(cold_contra(:, blidx1 : blidx2, :), [2, 3]))));
-            ersp_warm_ipsi(s, ch, :, :) = 10 * log10(bsxfun(@rdivide, squeeze(mean(warm_ipsi, 3)), squeeze(mean(warm_ipsi(:, blidx1 : blidx2, :), [2, 3]))));
-            ersp_warm_contra(s, ch, :, :) = 10 * log10(bsxfun(@rdivide, squeeze(mean(warm_contra, 3)), squeeze(mean(warm_contra(:, blidx1 : blidx2, :), [2, 3]))));
+            % ersp_cold_ipsi(s, ch, :, :)   = znorm(cold_ipsi, blidx1, blidx2);
+            % ersp_cold_contra(s, ch, :, :) = znorm(cold_contra, blidx1, blidx2);
+            % ersp_warm_ipsi(s, ch, :, :)   = znorm(warm_ipsi, blidx1, blidx2);
+            % ersp_warm_contra(s, ch, :, :) = znorm(warm_contra, blidx1, blidx2);
+
+            % Calculate ERSPs
+            % ersp_cold_ipsi(s, ch, :, :)   = 10 * log10(bsxfun(@rdivide, squeeze(mean(cold_ipsi, 3)),   squeeze(mean(cold_ipsi(:,   blidx1 : blidx2, :), [2, 3]))));
+            % ersp_cold_contra(s, ch, :, :) = 10 * log10(bsxfun(@rdivide, squeeze(mean(cold_contra, 3)), squeeze(mean(cold_contra(:, blidx1 : blidx2, :), [2, 3]))));
+            % ersp_warm_ipsi(s, ch, :, :)   = 10 * log10(bsxfun(@rdivide, squeeze(mean(warm_ipsi, 3)),   squeeze(mean(warm_ipsi(:,   blidx1 : blidx2, :), [2, 3]))));
+            % ersp_warm_contra(s, ch, :, :) = 10 * log10(bsxfun(@rdivide, squeeze(mean(warm_contra, 3)), squeeze(mean(warm_contra(:, blidx1 : blidx2, :), [2, 3]))));
+
+            % Get alpha traces
+            atra_cold_ipsi(s, ch, :)   = squeeze(mean(cold_ipsi(tf_freqs >= 8 & tf_freqs <= 12, :, :), [1, 3]));
+            atra_cold_contra(s, ch, :) = squeeze(mean(cold_contra(tf_freqs >= 8 & tf_freqs <= 12, :, :), [1, 3]));
+            atra_warm_ipsi(s, ch, :)   = squeeze(mean(warm_ipsi(tf_freqs >= 8 & tf_freqs <= 12, :, :), [1, 3]));
+            atra_warm_contra(s, ch, :) = squeeze(mean(warm_contra(tf_freqs >= 8 & tf_freqs <= 12, :, :), [1, 3]));
+
+            % Get alpha traces baselined
+            tmp1 = 10 * log10(bsxfun(@rdivide, squeeze(mean(cold_ipsi, 3)),   squeeze(mean(cold_ipsi(:,   blidx1 : blidx2, :), [2, 3]))));
+            tmp2 = 10 * log10(bsxfun(@rdivide, squeeze(mean(cold_contra, 3)), squeeze(mean(cold_contra(:, blidx1 : blidx2, :), [2, 3]))));
+            tmp3 = 10 * log10(bsxfun(@rdivide, squeeze(mean(warm_ipsi, 3)),   squeeze(mean(warm_ipsi(:,   blidx1 : blidx2, :), [2, 3]))));
+            tmp4 = 10 * log10(bsxfun(@rdivide, squeeze(mean(warm_contra, 3)), squeeze(mean(warm_contra(:, blidx1 : blidx2, :), [2, 3]))));
+
+            atra_db_cold_ipsi(s, ch, :)   = squeeze(mean(tmp1(tf_freqs >= 8 & tf_freqs <= 12, :), 1));
+            atra_db_cold_contra(s, ch, :) = squeeze(mean(tmp2(tf_freqs >= 8 & tf_freqs <= 12, :), 1));
+            atra_db_warm_ipsi(s, ch, :)   = squeeze(mean(tmp3(tf_freqs >= 8 & tf_freqs <= 12, :), 1));
+            atra_db_warm_contra(s, ch, :) = squeeze(mean(tmp4(tf_freqs >= 8 & tf_freqs <= 12, :), 1));
+
+            tmp1 = znorm(cold_ipsi,   zblidx1, zblidx2);
+            tmp2 = znorm(cold_contra, zblidx1, zblidx2);
+            tmp3 = znorm(warm_ipsi,   zblidx1, zblidx2);
+            tmp4 = znorm(warm_contra, zblidx1, zblidx2);
+
+            atra_z_cold_ipsi(s, ch, :)   = squeeze(mean(tmp1(tf_freqs >= 8 & tf_freqs <= 12, :), 1));
+            atra_z_cold_contra(s, ch, :) = squeeze(mean(tmp2(tf_freqs >= 8 & tf_freqs <= 12, :), 1));
+            atra_z_warm_ipsi(s, ch, :)   = squeeze(mean(tmp3(tf_freqs >= 8 & tf_freqs <= 12, :), 1));
+            atra_z_warm_contra(s, ch, :) = squeeze(mean(tmp4(tf_freqs >= 8 & tf_freqs <= 12, :), 1));
 
         end % End channel iteration
     end % End subject iteration
 
     % Save ERSPs
-    save([PATH_TFDECOMP 'ersp_cold_ipsi'], 'ersp_cold_ipsi');
-    save([PATH_TFDECOMP 'ersp_cold_contra'], 'ersp_cold_contra');
-    save([PATH_TFDECOMP 'ersp_warm_ipsi'], 'ersp_warm_ipsi');
-    save([PATH_TFDECOMP 'ersp_warm_contra'], 'ersp_warm_contra');
+    % save([PATH_TFDECOMP 'ersp_cold_ipsi'], 'ersp_cold_ipsi');
+    % save([PATH_TFDECOMP 'ersp_cold_contra'], 'ersp_cold_contra');
+    % save([PATH_TFDECOMP 'ersp_warm_ipsi'], 'ersp_warm_ipsi');
+    % save([PATH_TFDECOMP 'ersp_warm_contra'], 'ersp_warm_contra');
+
+    save([PATH_TFDECOMP 'atra_cold_ipsi'],   'atra_cold_ipsi');
+    save([PATH_TFDECOMP 'atra_cold_contra'], 'atra_cold_contra');
+    save([PATH_TFDECOMP 'atra_warm_ipsi'],   'atra_warm_ipsi');
+    save([PATH_TFDECOMP 'atra_warm_contra'], 'atra_warm_contra');
+
+    save([PATH_TFDECOMP 'atra_db_cold_ipsi'],   'atra_db_cold_ipsi');
+    save([PATH_TFDECOMP 'atra_db_cold_contra'], 'atra_db_cold_contra');
+    save([PATH_TFDECOMP 'atra_db_warm_ipsi'],   'atra_db_warm_ipsi');
+    save([PATH_TFDECOMP 'atra_db_warm_contra'], 'atra_db_warm_contra');
+
+    save([PATH_TFDECOMP 'atra_z_cold_ipsi'],   'atra_z_cold_ipsi');
+    save([PATH_TFDECOMP 'atra_z_cold_contra'], 'atra_z_cold_contra');
+    save([PATH_TFDECOMP 'atra_z_warm_ipsi'],   'atra_z_warm_ipsi');
+    save([PATH_TFDECOMP 'atra_z_warm_contra'], 'atra_z_warm_contra');
 
 end % End part1
+
+% ============================ Part 2: stats ============================================================================
+if ismember('part2a', to_execute)
+
+    % Load chanlocs
+    EEG = pop_loadset('filename', [num2str(subject_list(1)) '_autocleaned.set'], 'filepath', PATH_AUTOCLEANED, 'loadmode', 'info');
+
+    % Get tf params
+    tf_times = dlmread([PATH_TFDECOMP 'tf_times.csv']); 
+    tf_freqs = dlmread([PATH_TFDECOMP 'tf_freqs.csv']);
+
+    % Load ERSPs
+    load([PATH_TFDECOMP 'atra_z_cold_ipsi']);
+    load([PATH_TFDECOMP 'atra_z_cold_contra']);
+    load([PATH_TFDECOMP 'atra_z_warm_ipsi']);
+    load([PATH_TFDECOMP 'atra_z_warm_contra']);
+
+
+    cluster_channels = [18, 21, 23, 27, 24, 26]
+
+    figure
+    for chan = 1 : length(cluster_channels)
+
+        ch = cluster_channels(chan);
+
+        pd1 = squeeze(mean(atra_z_cold_ipsi(:, ch, :), 1));
+        pd2 = squeeze(mean(atra_z_cold_contra(:, ch, :), 1));
+        pd3 = squeeze(mean(atra_z_warm_ipsi(:, ch, :), 1));
+        pd4 = squeeze(mean(atra_z_warm_contra(:, ch, :), 1));
+
+
+        subplot(2, 3, chan)
+        plot(tf_times, [pd1, pd2, pd3, pd4])
+        title(EEG.chanlocs(ch).labels)
+
+        if chan == 6
+            legend({'coldips', 'coldcon', 'warmips', 'warmcon'})
+        end
+    end
+
+
+end
 
 % ============================ Part 2: stats ============================================================================
 if ismember('part2', to_execute)
@@ -241,8 +350,31 @@ if ismember('part2', to_execute)
     % The tests
     [stat_interaction] = ft_freqstatistics(cfg, GA_cold_contra, GA_cold_ipsi);  
 
+
+    % Calculate effect sizes
+    adjpetasq_cold = [];
+    for ch = 1 : 32
+
+        petasq = (squeeze(stat_interaction.stat(ch, :, :)) .^ 2) ./ ((squeeze(stat_interaction.stat(ch, :, :)) .^ 2) + (numel(subject_list) - 1));
+        adj_petasq = petasq - (1 - petasq) .* (1 / (numel(subject_list) - 1));
+        adjpetasq_cold(ch, :, :) = adj_petasq;
+
+
+    end
+
+
+
+
+    %pd = GA_warm_contra;
+    %topoplot(pd, chanlocs, 'plotrad', 0.7, 'intrad', 0.7, 'intsquare', 'on', 'conv', 'off', 'electrodes', 'on');
+
+
+
+
+
+
     % Repeat testalpha
-    testalpha  = 0.3;
+    testalpha  = 0.025;
 
     % Set colors
     cmap = 'jet';
@@ -330,3 +462,17 @@ if ismember('part2', to_execute)
 
 
 end % End part2
+
+
+% Function for z norming powcubes
+function[zersp] = znorm(indata, blidx1, blidx2)
+    zdata = zeros(size(indata));
+    tmp = indata(:, blidx1 : blidx2, :);
+    tmp = reshape(tmp, [size(tmp, 1), size(tmp, 2) * size(tmp, 3)]);
+    mpow = repmat(mean(tmp, 2), [1, size(indata, 2)]);
+    stdpow = repmat(std(tmp, [], 2), [1, size(indata, 2)]);
+    for t = 1 : size(indata, 3)
+        zdata(:, :, t) = (squeeze(indata(:, :, t)) - mpow) ./ stdpow;
+    end
+    zersp = squeeze(mean(zdata, 3));
+end
