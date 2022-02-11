@@ -12,6 +12,8 @@ PATH_EEGLAB           = '/home/plkn/eeglab2021.1/';
 PATH_AUTOCLEANED      = '/mnt/data_heap/exp1027/eeg/2_autocleaned/';
 PATH_TFDECOMP         = '/mnt/data_heap/exp1027/eeg/3_tfdecomp/';
 PATH_PLOT             = '/mnt/data_heap/exp1027/vsz_files/';
+PATH_CORTISOL         = '/mnt/data_heap/exp1027/cortisol_data/';
+PATH_FIELDTRIP        = '/home/plkn/fieldtrip-master/';
 
 % ======================= SUBJECTS =========================================================================================================
 
@@ -26,7 +28,7 @@ subject_list = setdiff(subject_list, todrop);
 % ======================= OPTIONS =========================================================================================================
 
 % Switch parts of the script on/off
-to_execute = {'part1'};
+to_execute = {'part3'};
 
 % ============================ Part 1: Calculate lateralization index ============================================================================
 if ismember('part1', to_execute)
@@ -256,6 +258,10 @@ end % End part2
 % ============================ Part 3: Some statistics ============================================================================
 if ismember('part3', to_execute)
 
+    % Init fieldtrip
+    addpath(PATH_FIELDTRIP);
+    ft_defaults;
+
     % Get tf params
     tf_times = dlmread([PATH_TFDECOMP 'tf_times.csv']); 
     tf_freqs = dlmread([PATH_TFDECOMP 'tf_freqs.csv']);
@@ -307,9 +313,11 @@ if ismember('part3', to_execute)
     latgeneral = (latwarm + latcold) / 2;
     latgeneral_fake = (latwarm_fake + latcold_fake) / 2;
 
-    % Cluster permutation tests
+    % Cluster permutation test general effect
     [latgen.sig_flag, latgen.ave, latgen.ave_fake, latgen.outline, latgen.apes, latgen.clust_sumt, latgen.clust_pvals, latgen.clust_apes, latgen.time_limits, latgen.freq_limits, latgen.cluster_idx]...
      = cluststats_2d_data(latgeneral, latgeneral_fake, tf_times, tf_freqs, 'pval_voxel', 0.05, 'tail', 1);
+
+    % Cluster permutation test condition difference
     [cold_vs_warm.sig_flag, cold_vs_warm.ave_cold, cold_vs_warm.ave_warm, cold_vs_warm.outline, cold_vs_warm.apes,...
      cold_vs_warm.clust_sumt, cold_vs_warm.clust_pvals, cold_vs_warm.clust_apes, cold_vs_warm.time_limits, cold_vs_warm.freq_limits, cold_vs_warm.cluster_idx]...
      = cluststats_2d_data(latcold, latwarm, tf_times, tf_freqs, 'pval_voxel', 0.05);
@@ -392,6 +400,9 @@ if ismember('part3', to_execute)
     % Cortisol measure labels
     cort_labels = {'C delta max', 'AUCi', 'AUCg'};
 
+    % Choose a measure
+    cm = 2;
+
     % Get session cortisol 
     session_corts = [];
     for cm = 1 : 3
@@ -401,53 +412,115 @@ if ismember('part3', to_execute)
         end
     end
     
-    % Choose a measure
-    cm = 3;
-
     % Determine cortisol increase as stress minus control
     cortisol_increase = (squeeze(session_corts(cm, :, 1)) - squeeze(session_corts(cm, :, 2)))';
     cortisol_stress = squeeze(session_corts(cm, :, 1))';
 
-    % Calculate correlation of latdiff in cluster and cortisol increase
-    lat_clust_diffs = [];
-    lat_clust_stress = [];
-    alpha_clust_time = [];
+    % Calculate latdiff
     latdiff = latcold - latwarm;
-    for s = 1 : size(latdiff, 1)
-        tmp = squeeze(latdiff(s, :, :));
-        lat_clust_diffs(end + 1) = mean(tmp(cold_vs_warm.cluster_idx{1}));
-        tmp = squeeze(latcold(s, :, :));
-        lat_clust_stress(end + 1) = mean(tmp(cold_vs_warm.cluster_idx{1}));
 
-        tmp = squeeze(latdiff(s, :, :));
-        tmp = tmp(tf_freqs >= 8 & tf_freqs <= 12, tf_times >= 1100 & tf_times <= 1300);
-        alpha_clust_time(end + 1) = mean(tmp(:));
-    end
+    % Get individual traces of alpha li
+    tmp = squeeze(mean(latdiff(:, tf_freqs >= 8 & tf_freqs <= 12, :), 2));
 
-    cortisol_stress = log10(cortisol_stress);
+    % Reduce to clustertime
+    time_idx = tf_times >= cold_vs_warm.time_limits{1}(1) & tf_times <= cold_vs_warm.time_limits{1}(2);
+    tmp = tmp(:, time_idx);
+
+    % Get individual peaks within clustertime
+    [peak_vals, peak_idx] = max(tmp, [], 2);
+
+    peak_r = corrcoef(cortisol_increase, peak_vals)
+
+    % Obtain around-peaks values
+
+
 
     figure
-    [r,p] = corrcoef(cortisol_stress, lat_clust_diffs');
-    plot(cortisol_stress, lat_clust_diffs', 'k*')
-    lsline
+    plot(tf_times, tmp)
 
     % Lateralizations to 2d
     latdiff_2d = reshape(latdiff, size(latdiff, 1), size(latdiff, 2) * size(latdiff, 3));
 
     % Correlate
     session_diff_corrs = reshape(corr(cortisol_increase, latdiff_2d), size(latdiff, 2), size(latdiff, 3));
+
+    % Save 2d correlation data
     dlmwrite([PATH_VEUSZ, 'correlation_diffs.csv'], session_diff_corrs);
 
+
+    % Build lateralization difference GA struct
+    cfg=[];
+    cfg.keepindividual = 'yes';
+    d = [];
+    d.dimord = 'chan_freq_time';
+    d.label = {'pariclust'};
+    d.time = tf_times;
+    d.freq = tf_freqs;
+    latmat = zeros(1, size(latdiff, 2), size(latdiff, 3));
+    D = {};
+    for s = 1 : size(latdiff, 1)
+        latmat(1, :, :) = squeeze(latdiff(s, :, :));
+        d.powspctrm = latmat;
+        D{s} = d;
+    end
+    GA = ft_freqgrandaverage(cfg, D{1, :});
+
+    % The test
+    cfg.channel          = [1];
+    cfg.statistic        = 'ft_statfun_correlationT';
+    cfg.tail             = 0; 
+    cfg.alpha            = 0.05;
+    cfg.neighbours       = [];
+    cfg.minnbchan        = 2;
+    cfg.method           = 'montecarlo';
+    cfg.correctm         = 'cluster';
+    cfg.type             = 'pearson';
+    cfg.clustertail      = 0;
+    cfg.clusteralpha     = 0.05;
+    cfg.clusterstatistic = 'maxsize';
+    cfg.numrandomization = 1000;
+    cfg.computecritval   = 'yes'; 
+    cfg.ivar             = 1;
+    cfg.design           = cortisol_increase';
+    [stat] = ft_freqstatistics(cfg, GA);
+
+
+    % Get average correlations of stress versus control
+    box_outline = zeros(size(session_diff_corrs));
+    %time_idx = tf_times >= cold_vs_warm.time_limits{1}(1) & tf_times <= cold_vs_warm.time_limits{1}(2);
+    time_idx = tf_times >= 1200 & tf_times <= 1400;
+    freq_idx = tf_freqs >= 8 & tf_freqs <= 12;
+    box_outline(freq_idx, time_idx) = 1;
+    average_r = tanh(mean2(atanh(session_diff_corrs(freq_idx, time_idx))));
+
+    % Get corresponding p value
+    n = length(subject_list);
+    t_value = (average_r * sqrt(n - 2)) / sqrt(1 - average_r^2);
+    p_value = 1 - tcdf(t_value, n - 2);
+
+    % Get all p-values
+    t_values = (session_diff_corrs .* sqrt(n - 2)) ./ sqrt(ones(size(session_diff_corrs)) - power(session_diff_corrs, 2));
+
+    p_values = 1 - tcdf(t_values, n - 2);
+
+
+    %session_diff_corrs(session_diff_corrs<0.36) = -1
+    [h, crit_p, adj_ci_cvrg, adj_p] = fdr_bh(p_values);
+
+
     % Plot
-    figure('Visible', 'off'); clf;
+    %figure('Visible', 'off'); clf;
+    figure
     cmap = 'jet';
-    clim = [-0.5, 0.5];
-    pd = session_diff_corrs;
+    clim = [-0.8, 0.8];
+    pd = squeeze(stat.prob);
     contourf(tf_times, tf_freqs, pd, 40, 'linecolor','none')
+    hold on
+    contour(tf_times, tf_freqs, box_outline, 1, 'linecolor', 'k', 'LineWidth', 2)
     colormap(cmap)
     set(gca, 'clim', clim, 'YScale', 'lin', 'YTick', [4, 8, 12, 20])
     colorbar;
-    title('correlations')
+    title(['correlation p-value: ', num2str(p_value)])
     saveas(gcf, [PATH_PLOT 'session_difference_correlation.png']);
 
 end % End part3
