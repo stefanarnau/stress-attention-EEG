@@ -317,27 +317,90 @@ if ismember('part3', to_execute)
     [latgen.sig_flag, latgen.ave, latgen.ave_fake, latgen.outline, latgen.apes, latgen.clust_sumt, latgen.clust_pvals, latgen.clust_apes, latgen.time_limits, latgen.freq_limits, latgen.cluster_idx]...
      = cluststats_2d_data(latgeneral, latgeneral_fake, tf_times, tf_freqs, 'pval_voxel', 0.05, 'tail', 1);
 
+    dlmwrite([PATH_VEUSZ, 'latidx_general_ave.csv'], latgen.ave);
+    dlmwrite([PATH_VEUSZ, 'latidx_general_contour.csv'], latgen.outline);
+    dlmwrite([PATH_VEUSZ, 'latidx_general_apes.csv'], latgen.apes);
+
+    % Cluster permutation test warm effect
+    [lateffect_warm.sig_flag, lateffect_warm.ave, lateffect_warm.ave_fake, lateffect_warm.outline, lateffect_warm.apes, lateffect_warm.clust_sumt, lateffect_warm.clust_pvals, lateffect_warm.clust_apes, lateffect_warm.time_limits, lateffect_warm.freq_limits, lateffect_warm.cluster_idx]...
+    = cluststats_2d_data(latwarm, latwarm_fake, tf_times, tf_freqs, 'pval_voxel', 0.05, 'tail', 1);
+
+    dlmwrite([PATH_VEUSZ, 'latidx_warm_ave.csv'], lateffect_warm.ave);
+    dlmwrite([PATH_VEUSZ, 'latidx_warm_contour.csv'], lateffect_warm.outline);
+    dlmwrite([PATH_VEUSZ, 'latidx_warm_apes.csv'], lateffect_warm.apes);
+
+    % Cluster permutation test cold effect
+    [lateffect_cold.sig_flag, lateffect_cold.ave, lateffect_cold.ave_fake, lateffect_cold.outline, lateffect_cold.apes, lateffect_cold.clust_sumt, lateffect_cold.clust_pvals, lateffect_cold.clust_apes, lateffect_cold.time_limits, lateffect_cold.freq_limits, lateffect_cold.cluster_idx]...
+    = cluststats_2d_data(latcold, latcold_fake, tf_times, tf_freqs, 'pval_voxel', 0.05, 'tail', 1);
+
+    dlmwrite([PATH_VEUSZ, 'latidx_cold_ave.csv'], lateffect_cold.ave);
+    dlmwrite([PATH_VEUSZ, 'latidx_cold_contour.csv'], lateffect_cold.outline);
+    dlmwrite([PATH_VEUSZ, 'latidx_cold_apes.csv'], lateffect_cold.apes);
+
     % Cluster permutation test condition difference
     [cold_vs_warm.sig_flag, cold_vs_warm.ave_cold, cold_vs_warm.ave_warm, cold_vs_warm.outline, cold_vs_warm.apes,...
      cold_vs_warm.clust_sumt, cold_vs_warm.clust_pvals, cold_vs_warm.clust_apes, cold_vs_warm.time_limits, cold_vs_warm.freq_limits, cold_vs_warm.cluster_idx]...
      = cluststats_2d_data(latcold, latwarm, tf_times, tf_freqs, 'pval_voxel', 0.05);
-
-    % Save matrices for plotting
-    dlmwrite([PATH_VEUSZ, 'latidx_general_ave.csv'], latgen.ave);
-    dlmwrite([PATH_VEUSZ, 'latidx_general_contour.csv'], latgen.outline);
-    dlmwrite([PATH_VEUSZ, 'latidx_general_apes.csv'], latgen.apes);
 
     dlmwrite([PATH_VEUSZ, 'latidx_ave_cold.csv'], cold_vs_warm.ave_cold);
     dlmwrite([PATH_VEUSZ, 'latidx_ave_warm.csv'], cold_vs_warm.ave_warm);
     dlmwrite([PATH_VEUSZ, 'latidx_ave_contour.csv'], cold_vs_warm.outline);
     dlmwrite([PATH_VEUSZ, 'latidx_ave_apes.csv'], cold_vs_warm.apes);
 
-    % Plot cluster effects
-    figure('Visible', 'off'); clf;
 
+    % =============================================================================================================
+
+    bins = {[0, 200], [200, 400], [400, 600], [800, 1000], [1000, 1200],[1200, 1400], [1400, 1600], [1800, 2000], [2000, 2200],[2200, 2400]};
+
+    % Parameterize cold and warm alpha latidx for bins
+    alphalat_warm = [];
+    alphalat_warm_fake = [];
+    alphalat_cold = [];
+    alphalat_cold_fake = [];
+    counter = 0;
+    for s = 1 : length(subject_list)
+        for bin = 1 : length(bins)
+            freq_idx = tf_freqs >= 8 & tf_freqs <= 12;
+            time_idx = tf_times >= bins{bin}(1) & tf_times < bins{bin}(2);
+            alphalat_warm(s, bin)      = mean2(squeeze(latwarm(s, freq_idx, time_idx)));
+            alphalat_warm_fake(s, bin) = mean2(squeeze(latwarm_fake(s, freq_idx, time_idx)));
+            alphalat_cold(s, bin)      = mean2(squeeze(latcold(s, freq_idx, time_idx)));
+            alphalat_cold_fake(s, bin) = mean2(squeeze(latcold_fake(s, freq_idx, time_idx)));
+        end
+    end
+
+    % Average for lineplots
+    alphalat_ave_bins = [mean(alphalat_warm, 1); mean(alphalat_warm_fake, 1); mean(alphalat_cold, 1); mean(alphalat_cold_fake, 1)];
+
+    figure
+    plot([1 : length(bins)], alphalat_ave_bins, 'LineWidth', 2)
+    legend({'control Ha', 'control H0', 'stress Ha', 'stress H0'})
+
+    % Test stress and control
+    p_values_warm = zeros(length(bins), 1);
+    p_values_cold = zeros(length(bins), 1);
+    for bin = 1 : length(bins)
+        anova_data = [alphalat_warm(:, bin), alphalat_warm_fake(:, bin)];
+        within = table({'Ha'; 'H0'}, 'VariableNames', {'condition'});
+        tabl = array2table(anova_data, 'VariableNames', {'Ha','H0'});
+        rm = fitrm(tabl, 'Ha-H0~1', 'WithinDesign', within);
+        anova_res = ranova(rm);
+        p_values_warm(bin) = anova_res.pValue(1);
+
+        anova_data = [alphalat_cold(:, bin), alphalat_cold_fake(:, bin)];
+        within = table({'Ha'; 'H0'}, 'VariableNames', {'condition'});
+        tabl = array2table(anova_data, 'VariableNames', {'Ha','H0'});
+        rm = fitrm(tabl, 'Ha-H0~1', 'WithinDesign', within);
+        anova_res = ranova(rm);
+        p_values_cold(bin) = anova_res.pValue(1);
+    end
+
+    % ===============================================================================================
+
+    % Plot cluster effects latidx general
+    figure('Visible', 'off'); clf;
     cmap = 'jet';
     clim = [-0.05, 0.05];
-
     subplot(2, 1, 1)
     pd = latgen.ave;
     contourf(tf_times, tf_freqs, pd, 40, 'linecolor','none')
@@ -347,7 +410,6 @@ if ismember('part3', to_execute)
     set(gca, 'clim', clim, 'YScale', 'lin', 'YTick', [4, 8, 12, 20])
     colorbar;
     title('latidx')
-
     subplot(2, 1, 2)
     pd = latgen.apes;
     contourf(tf_times, tf_freqs, pd, 40, 'linecolor','none')
@@ -355,15 +417,56 @@ if ismember('part3', to_execute)
     set(gca, 'clim', [-0.5, 0.5], 'YScale', 'lin', 'YTick', [4, 8, 12, 20])
     colorbar;
     title('apes')
-
     saveas(gcf, [PATH_PLOT 'main_effect.png']);
 
-    % Plot cluster effects
+    % Plot cluster effects latidx warm
     figure('Visible', 'off'); clf;
-
     cmap = 'jet';
     clim = [-0.05, 0.05];
+    subplot(2, 1, 1)
+    pd = lateffect_warm.ave;
+    contourf(tf_times, tf_freqs, pd, 40, 'linecolor','none')
+    hold on
+    contour(tf_times, tf_freqs, lateffect_warm.outline, 1, 'linecolor', 'k', 'LineWidth', 2)
+    colormap(cmap)
+    set(gca, 'clim', clim, 'YScale', 'lin', 'YTick', [4, 8, 12, 20])
+    colorbar;
+    title('latidx')
+    subplot(2, 1, 2)
+    pd = lateffect_warm.apes;
+    contourf(tf_times, tf_freqs, pd, 40, 'linecolor','none')
+    colormap(cmap)
+    set(gca, 'clim', [-0.5, 0.5], 'YScale', 'lin', 'YTick', [4, 8, 12, 20])
+    colorbar;
+    title('apes')
+    saveas(gcf, [PATH_PLOT 'main_effect_warm.png']);
 
+    % Plot cluster effects latidx cold
+    figure('Visible', 'off'); clf;
+    cmap = 'jet';
+    clim = [-0.05, 0.05];
+    subplot(2, 1, 1)
+    pd = lateffect_cold.ave;
+    contourf(tf_times, tf_freqs, pd, 40, 'linecolor','none')
+    hold on
+    contour(tf_times, tf_freqs, lateffect_cold.outline, 1, 'linecolor', 'k', 'LineWidth', 2)
+    colormap(cmap)
+    set(gca, 'clim', clim, 'YScale', 'lin', 'YTick', [4, 8, 12, 20])
+    colorbar;
+    title('latidx')
+    subplot(2, 1, 2)
+    pd = lateffect_cold.apes;
+    contourf(tf_times, tf_freqs, pd, 40, 'linecolor','none')
+    colormap(cmap)
+    set(gca, 'clim', [-0.5, 0.5], 'YScale', 'lin', 'YTick', [4, 8, 12, 20])
+    colorbar;
+    title('apes')
+    saveas(gcf, [PATH_PLOT 'main_effect_cold.png']);
+
+    % Plot cluster effects latidx cold versus warm
+    figure('Visible', 'off'); clf;
+    cmap = 'jet';
+    clim = [-0.05, 0.05];
     subplot(3, 1, 1)
     pd = cold_vs_warm.ave_warm;
     contourf(tf_times, tf_freqs, pd, 40, 'linecolor','none')
@@ -373,7 +476,6 @@ if ismember('part3', to_execute)
     set(gca, 'clim', clim, 'YScale', 'lin', 'YTick', [4, 8, 12, 20])
     colorbar;
     title('latidx warm')
-
     subplot(3, 1, 2)
     pd = cold_vs_warm.ave_cold;
     contourf(tf_times, tf_freqs, pd, 40, 'linecolor','none')
@@ -383,7 +485,6 @@ if ismember('part3', to_execute)
     set(gca, 'clim', clim, 'YScale', 'lin', 'YTick', [4, 8, 12, 20])
     colorbar;
     title('latidx cold')
-
     subplot(3, 1, 3)
     pd = cold_vs_warm.apes;
     contourf(tf_times, tf_freqs, pd, 40, 'linecolor','none')
@@ -391,7 +492,6 @@ if ismember('part3', to_execute)
     set(gca, 'clim', [-0.5, 0.5], 'YScale', 'lin', 'YTick', [4, 8, 12, 20])
     colorbar;
     title('apes')
-
     saveas(gcf, [PATH_PLOT 'cold_vs_warm.png']);
 
     % Read cortisol data: VP | condition | C_delta_max | AUCi | AUCg
@@ -419,25 +519,6 @@ if ismember('part3', to_execute)
     % Calculate latdiff
     latdiff = latcold - latwarm;
 
-    % Get individual traces of alpha li
-    tmp = squeeze(mean(latdiff(:, tf_freqs >= 8 & tf_freqs <= 12, :), 2));
-
-    % Reduce to clustertime
-    time_idx = tf_times >= cold_vs_warm.time_limits{1}(1) & tf_times <= cold_vs_warm.time_limits{1}(2);
-    tmp = tmp(:, time_idx);
-
-    % Get individual peaks within clustertime
-    [peak_vals, peak_idx] = max(tmp, [], 2);
-
-    peak_r = corrcoef(cortisol_increase, peak_vals)
-
-    % Obtain around-peaks values
-
-
-
-    figure
-    plot(tf_times, tmp)
-
     % Lateralizations to 2d
     latdiff_2d = reshape(latdiff, size(latdiff, 1), size(latdiff, 2) * size(latdiff, 3));
 
@@ -447,35 +528,38 @@ if ismember('part3', to_execute)
     % Save 2d correlation data
     dlmwrite([PATH_VEUSZ, 'correlation_diffs.csv'], session_diff_corrs);
 
-
     % Build lateralization difference GA struct
+    time_idx = tf_times >= 500 & tf_times <= 1500;
+    tf_times_pruned = tf_times(time_idx);
+    latdiff_pruned = latdiff(:, :, time_idx);
     cfg=[];
     cfg.keepindividual = 'yes';
     d = [];
     d.dimord = 'chan_freq_time';
     d.label = {'pariclust'};
-    d.time = tf_times;
+    d.time = tf_times_pruned;
     d.freq = tf_freqs;
-    latmat = zeros(1, size(latdiff, 2), size(latdiff, 3));
+    latmat = zeros(1, size(latdiff_pruned, 2), size(latdiff_pruned, 3));
     D = {};
-    for s = 1 : size(latdiff, 1)
-        latmat(1, :, :) = squeeze(latdiff(s, :, :));
+    for s = 1 : size(latdiff_pruned, 1)
+        latmat(1, :, :) = squeeze(latdiff_pruned(s, :, :));
         d.powspctrm = latmat;
         D{s} = d;
     end
     GA = ft_freqgrandaverage(cfg, D{1, :});
 
     % The test
+    cfg = [];
     cfg.channel          = [1];
     cfg.statistic        = 'ft_statfun_correlationT';
-    cfg.tail             = 0; 
+    cfg.tail             = 1; 
     cfg.alpha            = 0.05;
     cfg.neighbours       = [];
     cfg.minnbchan        = 2;
     cfg.method           = 'montecarlo';
     cfg.correctm         = 'cluster';
     cfg.type             = 'pearson';
-    cfg.clustertail      = 0;
+    cfg.clustertail      = 1;
     cfg.clusteralpha     = 0.05;
     cfg.clusterstatistic = 'maxsize';
     cfg.numrandomization = 1000;
@@ -484,6 +568,18 @@ if ismember('part3', to_execute)
     cfg.design           = cortisol_increase';
     [stat] = ft_freqstatistics(cfg, GA);
 
+    rho = squeeze(stat.rho(1, :, :));
+    figure
+    cmap = 'jet';
+    clim = [-0.8, 0.8];
+    pd = rho;
+    contourf(tf_times_pruned, tf_freqs, pd, 40, 'linecolor','none')
+    colormap(cmap)
+    set(gca, 'clim', clim, 'YScale', 'lin', 'YTick', [4, 8, 12, 20])
+    colorbar;
+    title('rho')
+
+
 
     % Get average correlations of stress versus control
     box_outline = zeros(size(session_diff_corrs));
@@ -491,6 +587,7 @@ if ismember('part3', to_execute)
     time_idx = tf_times >= 1200 & tf_times <= 1400;
     freq_idx = tf_freqs >= 8 & tf_freqs <= 12;
     box_outline(freq_idx, time_idx) = 1;
+    
     average_r = tanh(mean2(atanh(session_diff_corrs(freq_idx, time_idx))));
 
     % Get corresponding p value
@@ -502,6 +599,22 @@ if ismember('part3', to_execute)
     t_values = (session_diff_corrs .* sqrt(n - 2)) ./ sqrt(ones(size(session_diff_corrs)) - power(session_diff_corrs, 2));
 
     p_values = 1 - tcdf(t_values, n - 2);
+
+    % Plot
+    %figure('Visible', 'off'); clf;
+    figure
+    cmap = 'bone';
+    clim = [0, 1];
+    pd = p_values;
+    contourf(tf_times, tf_freqs, pd, 40, 'linecolor','none')
+    hold on
+    box_outline = p_values <= 0.05;
+    contour(tf_times, tf_freqs, box_outline, 1, 'linecolor', 'm', 'LineWidth', 2)
+    colormap(cmap)
+    set(gca, 'clim', clim, 'YScale', 'lin', 'YTick', [4, 8, 12, 20])
+    colorbar;
+    title('correlation p-values')
+    saveas(gcf, [PATH_PLOT 'session_difference_correlation_pvalues.png']);
 
 
     %session_diff_corrs(session_diff_corrs<0.36) = -1
