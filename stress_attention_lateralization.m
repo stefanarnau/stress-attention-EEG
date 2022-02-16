@@ -350,7 +350,8 @@ if ismember('part3', to_execute)
 
     % =============================================================================================================
 
-    bins = {[0, 200], [200, 400], [400, 600], [800, 1000], [1000, 1200],[1200, 1400], [1400, 1600], [1800, 2000], [2000, 2200],[2200, 2400]};
+    %bins = {[0, 200], [200, 400], [400, 600], [800, 1000], [1000, 1200],[1200, 1400], [1400, 1600], [1800, 2000], [2000, 2200],[2200, 2400]};
+    bins = {[0, 800], [800, 1600], [1600, 2400]};
 
     % Parameterize cold and warm alpha latidx for bins
     alphalat_warm = [];
@@ -379,6 +380,9 @@ if ismember('part3', to_execute)
     % Test stress and control
     p_values_warm = zeros(length(bins), 1);
     p_values_cold = zeros(length(bins), 1);
+    control_h = zeros(length(bins), 1);
+    stress_h = zeros(length(bins), 1);
+    condition_h = zeros(length(bins), 1);
     for bin = 1 : length(bins)
         anova_data = [alphalat_warm(:, bin), alphalat_warm_fake(:, bin)];
         within = table({'Ha'; 'H0'}, 'VariableNames', {'condition'});
@@ -393,6 +397,12 @@ if ismember('part3', to_execute)
         rm = fitrm(tabl, 'Ha-H0~1', 'WithinDesign', within);
         anova_res = ranova(rm);
         p_values_cold(bin) = anova_res.pValue(1);
+
+        [control_h(bin), p, ci, stats] = ttest(alphalat_warm(:, bin))
+        [stress_h(bin), p, ci, stats] = ttest(alphalat_cold(:, bin))
+
+        [condition_h(bin), p, ci, stats] = ttest(alphalat_cold(:, bin), alphalat_warm(:, bin))
+
     end
 
     % ===============================================================================================
@@ -580,19 +590,25 @@ if ismember('part3', to_execute)
     title('rho')
 
 
-
-    % Get average correlations of stress versus control
-    box_outline = zeros(size(session_diff_corrs));
-    %time_idx = tf_times >= cold_vs_warm.time_limits{1}(1) & tf_times <= cold_vs_warm.time_limits{1}(2);
-    time_idx = tf_times >= 1200 & tf_times <= 1400;
+    % Get average correlations for within cluster time boundaries and for outside of cluster
+    idx_inside = zeros(size(session_diff_corrs));
+    idx_outside = zeros(size(session_diff_corrs));
+    inside_idx  = (tf_times >= cold_vs_warm.time_limits{1}(1) & tf_times <= cold_vs_warm.time_limits{1}(2));
+    outside_idx = (tf_times < cold_vs_warm.time_limits{1}(1) | tf_times > cold_vs_warm.time_limits{1}(2)) & (tf_times >= 0 & tf_times <= 2500);
     freq_idx = tf_freqs >= 8 & tf_freqs <= 12;
-    box_outline(freq_idx, time_idx) = 1;
-    
-    average_r = tanh(mean2(atanh(session_diff_corrs(freq_idx, time_idx))));
+    idx_inside(freq_idx, inside_idx) = 1;
+    idx_outside(freq_idx, outside_idx) = 1;
+
+    average_r_inside = tanh(mean2(atanh(session_diff_corrs(logical(idx_inside) ))));
+    average_r_outside = tanh(mean2(atanh(session_diff_corrs(logical(idx_outside) ))));
+
+    % Get difference
+    diff_r_inside = tanh(atanh(average_r_inside) - atanh(average_r_outside));
 
     % Get corresponding p value
+    rho_to_test = diff_r_inside;
     n = length(subject_list);
-    t_value = (average_r * sqrt(n - 2)) / sqrt(1 - average_r^2);
+    t_value = (rho_to_test * sqrt(n - 2)) / sqrt(1 - rho_to_test^2);
     p_value = 1 - tcdf(t_value, n - 2);
 
     % Get all p-values
