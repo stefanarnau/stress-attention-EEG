@@ -1,19 +1,12 @@
 clear all;
 
 % Path vars
-PATH_EEGLAB           = 'add_a_path_here';
-PATH_AUTOCLEANED      = 'add_a_path_here';
-PATH_TFDECOMP         = 'add_a_path_here';
-PATH_PLOT             = 'add_a_path_here';
-PATH_CORTISOL         = 'add_a_path_here';
-PATH_VEUSZ            = 'add_a_path_here';
-
-PATH_EEGLAB           = '/home/plkn/eeglab2021.1/';
-PATH_AUTOCLEANED      = '/mnt/data_heap/exp1027/eeg/2_autocleaned/';
-PATH_TFDECOMP         = '/mnt/data_heap/exp1027/eeg/3_tfdecomp/';
-PATH_PLOT             = '/mnt/data_heap/exp1027/vsz_files/';
-PATH_CORTISOL         = '/mnt/data_heap/exp1027/cortisol_data/';
-PATH_FIELDTRIP        = '/home/plkn/fieldtrip-master/';
+PATH_EEGLAB           = 'add_a_nice_path_right_here';
+PATH_AUTOCLEANED      = 'add_a_nice_path_right_here';
+PATH_TFDECOMP         = 'add_a_nice_path_right_here';
+PATH_PLOT             = 'add_a_nice_path_right_here';
+PATH_CORTISOL         = 'add_a_nice_path_right_here';
+PATH_FIELDTRIP        = 'add_a_nice_path_right_here';
 
 % ======================= SUBJECTS =========================================================================================================
 
@@ -28,7 +21,7 @@ subject_list = setdiff(subject_list, todrop);
 % ======================= OPTIONS =========================================================================================================
 
 % Switch parts of the script on/off
-to_execute = {'part3'};
+to_execute = {'part1', 'part2', 'part3'};
 
 % ============================ Part 1: Calculate lateralization index ============================================================================
 if ismember('part1', to_execute)
@@ -141,11 +134,6 @@ if ismember('part1', to_execute)
             latidx_warm_fake(s, cp, :, :) = (warm_ipsi_fake - warm_contra_fake) ./ (warm_ipsi_fake + warm_contra_fake);
 
             % Build contra ipsi topo
-            %contip_topo_warm(chanpairs{cp}(1), :, :) = squeeze(contip_topo_warm(chanpairs{cp}(1), :, :)) + ((warm_contra ./ (warm_contra) + (warm_ipsi)) / length(subject_list));
-            %contip_topo_warm(chanpairs{cp}(2), :, :) = squeeze(contip_topo_warm(chanpairs{cp}(2), :, :)) + ((warm_ipsi ./ (warm_contra) + (warm_ipsi)) / length(subject_list));
-            %contip_topo_cold(chanpairs{cp}(1), :, :) = squeeze(contip_topo_cold(chanpairs{cp}(1), :, :)) + ((cold_contra ./ (cold_contra) + (cold_ipsi)) / length(subject_list));
-            %contip_topo_cold(chanpairs{cp}(2), :, :) = squeeze(contip_topo_cold(chanpairs{cp}(2), :, :)) + ((cold_ipsi ./ (cold_contra) + (cold_ipsi)) / length(subject_list));
-
             contip_topo_warm(s, chanpairs{cp}(1), :, :) = squeeze(contip_topo_warm(s, chanpairs{cp}(1), :, :)) + (warm_contra ./ ((warm_ipsi + warm_contra) / 2));
             contip_topo_warm(s, chanpairs{cp}(2), :, :) = squeeze(contip_topo_warm(s, chanpairs{cp}(2), :, :)) + (warm_ipsi   ./ ((warm_ipsi + warm_contra) / 2));
             contip_topo_cold(s, chanpairs{cp}(1), :, :) = squeeze(contip_topo_cold(s, chanpairs{cp}(1), :, :)) + (cold_contra ./ ((warm_ipsi + warm_contra) / 2));
@@ -235,19 +223,20 @@ if ismember('part2', to_execute)
 
         end
 
+        % Plot topos
         clim = [-0.05, 0.05];
-
+        chans_marked = [18, 21, 23, 27, 24, 26];
 
         figure('Visible', 'off'); clf;
         pd = topo_cold;
-        topoplot(pd, chanlocs, 'plotrad', 0.7, 'intrad', 0.7, 'intsquare', 'on', 'conv', 'off', 'electrodes', 'on');
+        topoplot(pd, chanlocs, 'plotrad', 0.7, 'intrad', 0.7, 'intsquare', 'on', 'conv', 'off', 'electrodes', 'off', 'emarker2', {chans_marked, 'o', 'k', 12, 1});
         colormap('jet');
         caxis(clim);
         saveas(gcf, [PATH_PLOT 'topo_latidx_cold' num2str(counter) '.png']);
 
         figure('Visible', 'off'); clf;
         pd = topo_warm;
-        topoplot(pd, chanlocs, 'plotrad', 0.7, 'intrad', 0.7, 'intsquare', 'on', 'conv', 'off', 'electrodes', 'on');
+        topoplot(pd, chanlocs, 'plotrad', 0.7, 'intrad', 0.7, 'intsquare', 'on', 'conv', 'off', 'electrodes', 'off', 'emarker2', {chans_marked, 'o', 'k', 12, 1});
         colormap('jet');
         caxis(clim);
         saveas(gcf, [PATH_PLOT 'topo_latidx_warm' num2str(counter) '.png']);
@@ -281,7 +270,7 @@ if ismember('part3', to_execute)
     load([PATH_TFDECOMP 'latidx_cold_fake']);
     load([PATH_TFDECOMP 'latidx_warm_fake']);
 
-    % Define channelpair for cluster
+    % Define channelpairs for cluster
     idx = [10, 12, 13]; 
 
     % Average across channel pairs
@@ -347,10 +336,7 @@ if ismember('part3', to_execute)
     dlmwrite([PATH_VEUSZ, 'latidx_ave_contour.csv'], cold_vs_warm.outline);
     dlmwrite([PATH_VEUSZ, 'latidx_ave_apes.csv'], cold_vs_warm.apes);
 
-
-    % =============================================================================================================
-
-    %bins = {[0, 200], [200, 400], [400, 600], [800, 1000], [1000, 1200],[1200, 1400], [1400, 1600], [1800, 2000], [2000, 2200],[2200, 2400]};
+    % Choose bins for testing alpha lateralization index 
     bins = {[0, 800], [800, 1600], [1600, 2400]};
 
     % Parameterize cold and warm alpha latidx for bins
@@ -382,6 +368,10 @@ if ismember('part3', to_execute)
     p_values_cold = zeros(length(bins), 1);
     control_h = zeros(length(bins), 1);
     stress_h = zeros(length(bins), 1);
+    control_p = zeros(length(bins), 1);
+    stress_p = zeros(length(bins), 1);
+    control_t = zeros(length(bins), 1);
+    stress_t = zeros(length(bins), 1);
     condition_h = zeros(length(bins), 1);
     for bin = 1 : length(bins)
         anova_data = [alphalat_warm(:, bin), alphalat_warm_fake(:, bin)];
@@ -398,10 +388,12 @@ if ismember('part3', to_execute)
         anova_res = ranova(rm);
         p_values_cold(bin) = anova_res.pValue(1);
 
-        [control_h(bin), p, ci, stats] = ttest(alphalat_warm(:, bin))
-        [stress_h(bin), p, ci, stats] = ttest(alphalat_cold(:, bin))
+        [control_h(bin), control_p(bin), ci, stats] = ttest(alphalat_warm(:, bin));
+        control_t(bin) = stats.tstat;
+        [stress_h(bin), stress_p(bin), ci, stats] = ttest(alphalat_cold(:, bin));
+        stress_t(bin) = stats.tstat;
 
-        [condition_h(bin), p, ci, stats] = ttest(alphalat_cold(:, bin), alphalat_warm(:, bin))
+        [condition_h(bin), p, ci, stats] = ttest(alphalat_cold(:, bin), alphalat_warm(:, bin));
 
     end
 
@@ -558,7 +550,7 @@ if ismember('part3', to_execute)
     end
     GA = ft_freqgrandaverage(cfg, D{1, :});
 
-    % The test
+    % The cluster permutation test
     cfg = [];
     cfg.channel          = [1];
     cfg.statistic        = 'ft_statfun_correlationT';
@@ -578,18 +570,6 @@ if ismember('part3', to_execute)
     cfg.design           = cortisol_increase';
     [stat] = ft_freqstatistics(cfg, GA);
 
-    rho = squeeze(stat.rho(1, :, :));
-    figure
-    cmap = 'jet';
-    clim = [-0.8, 0.8];
-    pd = rho;
-    contourf(tf_times_pruned, tf_freqs, pd, 40, 'linecolor','none')
-    colormap(cmap)
-    set(gca, 'clim', clim, 'YScale', 'lin', 'YTick', [4, 8, 12, 20])
-    colorbar;
-    title('rho')
-
-
     % Get average correlations for within cluster time boundaries and for outside of cluster
     idx_inside = zeros(size(session_diff_corrs));
     idx_outside = zeros(size(session_diff_corrs));
@@ -599,6 +579,7 @@ if ismember('part3', to_execute)
     idx_inside(freq_idx, inside_idx) = 1;
     idx_outside(freq_idx, outside_idx) = 1;
 
+    % Average correlation coefficients for within- and outside-cluster time windows
     average_r_inside = tanh(mean2(atanh(session_diff_corrs(logical(idx_inside) ))));
     average_r_outside = tanh(mean2(atanh(session_diff_corrs(logical(idx_outside) ))));
 
@@ -610,46 +591,5 @@ if ismember('part3', to_execute)
     n = length(subject_list);
     t_value = (rho_to_test * sqrt(n - 2)) / sqrt(1 - rho_to_test^2);
     p_value = 1 - tcdf(t_value, n - 2);
-
-    % Get all p-values
-    t_values = (session_diff_corrs .* sqrt(n - 2)) ./ sqrt(ones(size(session_diff_corrs)) - power(session_diff_corrs, 2));
-
-    p_values = 1 - tcdf(t_values, n - 2);
-
-    % Plot
-    %figure('Visible', 'off'); clf;
-    figure
-    cmap = 'bone';
-    clim = [0, 1];
-    pd = p_values;
-    contourf(tf_times, tf_freqs, pd, 40, 'linecolor','none')
-    hold on
-    box_outline = p_values <= 0.05;
-    contour(tf_times, tf_freqs, box_outline, 1, 'linecolor', 'm', 'LineWidth', 2)
-    colormap(cmap)
-    set(gca, 'clim', clim, 'YScale', 'lin', 'YTick', [4, 8, 12, 20])
-    colorbar;
-    title('correlation p-values')
-    saveas(gcf, [PATH_PLOT 'session_difference_correlation_pvalues.png']);
-
-
-    %session_diff_corrs(session_diff_corrs<0.36) = -1
-    [h, crit_p, adj_ci_cvrg, adj_p] = fdr_bh(p_values);
-
-
-    % Plot
-    %figure('Visible', 'off'); clf;
-    figure
-    cmap = 'jet';
-    clim = [-0.8, 0.8];
-    pd = squeeze(stat.prob);
-    contourf(tf_times, tf_freqs, pd, 40, 'linecolor','none')
-    hold on
-    contour(tf_times, tf_freqs, box_outline, 1, 'linecolor', 'k', 'LineWidth', 2)
-    colormap(cmap)
-    set(gca, 'clim', clim, 'YScale', 'lin', 'YTick', [4, 8, 12, 20])
-    colorbar;
-    title(['correlation p-value: ', num2str(p_value)])
-    saveas(gcf, [PATH_PLOT 'session_difference_correlation.png']);
 
 end % End part3
